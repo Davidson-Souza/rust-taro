@@ -11,6 +11,9 @@ documentation="https://docs.rs/rust_taro"
 repository="https://github.com/judica-org/rust-taro"
 readme="README.md"
 
-
-
 [dependencies]
+hex = "0.4.3"
+sha2 = "0.10.6"
+
+[features]
+memory-db = []
