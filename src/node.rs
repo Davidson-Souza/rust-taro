@@ -22,6 +22,14 @@ pub enum Node {
     Leaf(LeafNode),
     Branch(DiskBranchNode),
 }
+impl Default for Node {
+    fn default() -> Self {
+        Node::Leaf(LeafNode {
+            data: vec![],
+            sum: 0,
+        })
+    }
+}
 #[derive(Debug, Clone)]
 pub struct BranchNode {
     sum: u64,
@@ -43,12 +51,22 @@ pub struct DiskBranchNode {
     /// Hash of the right child
     right: NodeHash,
 }
+
 impl DiskBranchNode {
     pub fn l_child(&self) -> &NodeHash {
         &self.left
     }
     pub fn r_child(&self) -> &NodeHash {
         &self.right
+    }
+    pub fn new(sum: u64, left: NodeHash, right: NodeHash) -> DiskBranchNode {
+        let _hash = BranchNode::parent_hash(left, right, sum);
+        DiskBranchNode {
+            sum,
+            _hash,
+            left,
+            right,
+        }
     }
 }
 impl BranchNode {

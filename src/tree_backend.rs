@@ -15,7 +15,7 @@ pub trait TreeStore {
     type Error;
     /// Stores a new branch keyed by its node_hash. Branch nodes are intermediate nodes
     /// that aren't a root or a leaf (i.e nodes in 1 <= i < 255).
-    fn insert_branch(&self, branch: BranchNode) -> Result<(), Self::Error>;
+    fn insert_branch(&self, branch: DiskBranchNode) -> Result<(), Self::Error>;
     /// Inserts a new leaf into our storage
     fn insert_leaf(&self, leaf: LeafNode) -> Result<(), Self::Error>;
     /// delete_branch deletes the branch node keyed by the given NodeHash.

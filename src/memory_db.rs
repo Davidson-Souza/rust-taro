@@ -31,11 +31,12 @@ use std::{
 
 use crate::{
     node::MSSMTNode,
-    node::{BranchNode, LeafNode, Node},
+    node::{BranchNode, DiskBranchNode, LeafNode, Node},
     node_hash::NodeHash,
     tree_backend::TreeStore,
 };
 
+#[derive(Debug)]
 pub struct MemoryDatabase {
     inner: RwLock<HashMap<NodeHash, Node>>,
 }
@@ -63,7 +64,7 @@ impl TreeStore for MemoryDatabase {
         Ok(())
     }
 
-    fn insert_branch(&self, branch: BranchNode) -> Result<(), Self::Error> {
+    fn insert_branch(&self, branch: DiskBranchNode) -> Result<(), Self::Error> {
         let mut inner = self.inner.write()?;
         inner.insert(branch.node_hash(), Node::Branch(branch.into()));
         Ok(())
@@ -115,7 +116,7 @@ impl<T> From<PoisonError<T>> for MemoryDatabaseError {
 #[cfg(test)]
 mod test {
     use crate::{
-        node::{BranchNode, LeafNode, MSSMTNode, Node},
+        node::{DiskBranchNode, LeafNode, MSSMTNode},
         node_hash::NodeHash,
         tree_backend::TreeStore,
     };
@@ -132,7 +133,7 @@ mod test {
         storage.insert_leaf(leaf1.clone()).expect("Valid leaves");
         storage.insert_leaf(leaf2.clone()).expect("Valid leaves");
 
-        let branch = BranchNode::new(Node::Leaf(leaf1), Node::Leaf(leaf2));
+        let branch = DiskBranchNode::new(110, leaf1.node_hash(), leaf2.node_hash());
 
         storage.insert_branch(branch).expect("Valid branch");
 

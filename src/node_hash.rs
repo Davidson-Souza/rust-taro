@@ -9,7 +9,16 @@ use std::{
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeHash([u8; 32]);
-
+impl NodeHash {
+    /// Tells which node should we take while descending into a tree (left or right sibling)
+    pub fn bit_index(&self, i: u8) -> bool {
+        // which u8 should we take? We simple look at integer division of i by 8
+        let limb = i / 8;
+        // a mask to fetch a bit inside this u8
+        let mask = 1 << (i % 8);
+        return (self.0[limb as usize] & mask) == 0;
+    }
+}
 impl Debug for NodeHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0))
@@ -71,6 +80,7 @@ impl Display for NodeHash {
         write!(f, "{}", hex::encode(self.0))
     }
 }
+
 #[cfg(test)]
 mod test {
     use std::ops::Deref;
