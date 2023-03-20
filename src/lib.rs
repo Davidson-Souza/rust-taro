@@ -3,5 +3,6 @@ pub mod error;
 pub mod memory_db;
 pub mod node;
 pub mod node_hash;
+pub mod proof;
 pub mod tree;
 pub mod tree_backend;

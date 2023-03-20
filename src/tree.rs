@@ -1,6 +1,9 @@
+use std::slice;
+
 use crate::{
-    node::{DiskBranchNode, LeafNode, MSSMTNode, Node},
+    node::{BranchNode, DiskBranchNode, LeafNode, MSSMTNode, Node},
     node_hash::NodeHash,
+    proof::{Proof, Provable, Verifiable},
     tree_backend::TreeStore,
 };
 
@@ -69,6 +72,12 @@ impl<Persistence: TreeStore> MSSMTree<Persistence> {
             root: empty_tree[0].node_hash(),
             empty_tree,
         }
+    }
+    fn get_node_hash(&self, node: Option<BranchNode>, idx: u8) -> NodeHash {
+        if let Some(node) = node {
+            return node.node_hash();
+        }
+        self.empty_tree[idx as usize].node_hash()
     }
 }
 impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> {
@@ -148,12 +157,47 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
     }
 }
 
+impl<T: TreeStore> Provable for MSSMTree<T> {
+    type Error = T::Error;
+
+    fn prove(&self, key: NodeHash) -> Result<crate::proof::Proof, Self::Error> {
+        let mut proof = Vec::new();
+        let mut node = self.root;
+        for idx in 0..=255 {
+            let disk_node = self.database.fetch_branch(node)?;
+            let (left, right) = self.get_children_hash(&disk_node, idx);
+
+            let (next, sibling) = if key.bit_index(idx) {
+                (left, right)
+            } else {
+                (right, left)
+            };
+            node = next;
+            if idx < 255 {
+                if let Some(sibling) = self.database.fetch_branch(sibling)? {
+                    proof.push(Node::Branch(sibling));
+                } else {
+                    proof.push(self.empty_tree[idx as usize].clone());
+                }
+            } else {
+                if let Some(sibling) = self.database.fetch_leaf(sibling)? {
+                    proof.push(Node::Leaf(sibling));
+                } else {
+                    proof.push(self.empty_tree[idx as usize].clone());
+                }
+            }
+        }
+        Ok(Proof::new(proof))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{
         memory_db::MemoryDatabase,
         node::{DiskBranchNode, LeafNode, MSSMTNode, Node},
         node_hash::NodeHash,
+        proof::Provable,
     };
     fn get_test_tree() -> MSSMTree<MemoryDatabase> {
         let database = MemoryDatabase::new();
