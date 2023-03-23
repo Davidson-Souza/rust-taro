@@ -1,9 +1,7 @@
-use std::slice;
-
 use crate::{
-    node::{BranchNode, DiskBranchNode, LeafNode, MSSMTNode, Node},
+    node::{DiskBranchNode, LeafNode, MSSMTNode, Node},
     node_hash::NodeHash,
-    proof::{Proof, Provable, Verifiable},
+    proof::{Proof, Provable},
     tree_backend::TreeStore,
 };
 
@@ -39,30 +37,25 @@ impl<Persistence: TreeStore> MSSMTree<Persistence> {
     /// the corresponding hash from the empty_tree. If this node isn't empty, we then return
     /// it's actual child
     fn get_children_hash(&self, node: &Option<DiskBranchNode>, idx: u8) -> (NodeHash, NodeHash) {
-        if node.is_none()
-            || node.as_ref().unwrap().node_hash() == self.empty_tree[idx as usize].node_hash()
-        {
-            // If we call this method in a leaf
-            if idx == 255 {
-                let hash = NodeHash::from([0; 32]);
-                return (hash, hash);
+        if let Some(node) = node {
+            if node.node_hash() != self.empty_tree[idx as usize].node_hash() {
+                return (*node.l_child(), *node.r_child());
             }
-            let hash = self.empty_tree[(idx + 1) as usize].node_hash();
-            return (hash, hash);
         }
 
-        let node = node.as_ref().unwrap();
-        (*node.l_child(), *node.r_child())
+        let hash = self.empty_tree[((idx as usize) + 1)].node_hash();
+
+        (hash, hash)
     }
     pub fn new(database: Persistence) -> MSSMTree<Persistence> {
-        let mut empty_tree: Vec<Node> = Vec::with_capacity(256);
+        let mut empty_tree: Vec<Node> = Vec::with_capacity(257);
         let mut node = Node::default();
+        empty_tree.push(node.clone());
         // Creates the empty tree
         for _ in 0..=255 {
-            empty_tree.push(node.clone());
-
             let branch = Node::Branch(DiskBranchNode::new(0, node.node_hash(), node.node_hash()));
             node = branch;
+            empty_tree.push(node.clone());
         }
         // We build it in reverse order, from leaf to root. But in a tree, index 0 is the root
         // so we reverse that here.
@@ -73,12 +66,6 @@ impl<Persistence: TreeStore> MSSMTree<Persistence> {
             empty_tree,
         }
     }
-    fn get_node_hash(&self, node: Option<BranchNode>, idx: u8) -> NodeHash {
-        if let Some(node) = node {
-            return node.node_hash();
-        }
-        self.empty_tree[idx as usize].node_hash()
-    }
 }
 impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> {
     fn insert(&mut self, key: NodeHash, data: Vec<u8>, sum: u64) -> Result<(), Persistence::Error> {
@@ -87,6 +74,7 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
         let mut node = self.root;
         let mut parents = vec![];
         let mut siblings = vec![];
+
         // Walks down the tree and grabs all parents and siblings on the way down
         for idx in 0..=255 {
             let disk_node = self.database.fetch_branch(node)?;
@@ -97,19 +85,22 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
             } else {
                 (right, left)
             };
+
             parents.push(node);
             siblings.push(sibling);
             node = next;
         }
+
         if leaf.node_hash() != self.empty_tree[255].node_hash() {
             self.database.insert_leaf(leaf.clone())?;
         } else {
             self.database.delete_leaf(leaf.node_hash())?;
         }
         let mut current_update: Node = Node::Leaf(leaf);
+
         // Actually update the tree
-        for idx in (0..=255).rev() {
-            let sibling = siblings[idx as usize];
+        for idx in (1..=255).rev() {
+            let sibling = siblings.pop().unwrap();
             let (left, right) = if key.bit_index(idx) {
                 (current_update.node_hash(), sibling)
             } else {
@@ -123,7 +114,7 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
                 current_update.node_sum()
             };
             // If the old node isn't empty, delete it from the storage
-            if parents[idx as usize] != self.empty_tree[idx as usize].node_hash() {
+            if parents[(idx - 1) as usize] != self.empty_tree[(idx - 1) as usize].node_hash() {
                 self.database.delete_branch(parents[idx as usize])?;
             }
             let new_node = DiskBranchNode::new(sum, left, right);
@@ -147,7 +138,7 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
 
     fn lookup(&self, key: NodeHash) -> Result<Option<LeafNode>, Persistence::Error> {
         let mut node = self.root;
-        for idx in 0..=255 {
+        for idx in 0..=254 {
             let disk_node = self.database.fetch_branch(node)?;
             let (left, right) = self.get_children_hash(&disk_node, idx);
             let next = if key.bit_index(idx) { left } else { right };
@@ -165,9 +156,9 @@ impl<T: TreeStore> Provable for MSSMTree<T> {
         let mut node = self.root;
         for idx in 0..=255 {
             let disk_node = self.database.fetch_branch(node)?;
-            let (left, right) = self.get_children_hash(&disk_node, idx);
+            let (left, right) = self.get_children_hash(&disk_node, idx as u8);
 
-            let (next, sibling) = if key.bit_index(idx) {
+            let (next, sibling) = if key.bit_index(idx as u8) {
                 (left, right)
             } else {
                 (right, left)
@@ -177,16 +168,17 @@ impl<T: TreeStore> Provable for MSSMTree<T> {
                 if let Some(sibling) = self.database.fetch_branch(sibling)? {
                     proof.push(Node::Branch(sibling));
                 } else {
-                    proof.push(self.empty_tree[idx as usize].clone());
+                    proof.push(self.empty_tree[(idx + 1) as usize].clone());
                 }
             } else {
                 if let Some(sibling) = self.database.fetch_leaf(sibling)? {
                     proof.push(Node::Leaf(sibling));
                 } else {
-                    proof.push(self.empty_tree[idx as usize].clone());
+                    proof.push(self.empty_tree[(idx + 1) as usize].clone());
                 }
             }
         }
+
         Ok(Proof::new(proof))
     }
 }
@@ -195,9 +187,8 @@ impl<T: TreeStore> Provable for MSSMTree<T> {
 mod test {
     use crate::{
         memory_db::MemoryDatabase,
-        node::{DiskBranchNode, LeafNode, MSSMTNode, Node},
+        node::{LeafNode, MSSMTNode},
         node_hash::NodeHash,
-        proof::Provable,
     };
     fn get_test_tree() -> MSSMTree<MemoryDatabase> {
         let database = MemoryDatabase::new();
@@ -207,18 +198,27 @@ mod test {
     use super::{MSSMTree, Tree};
     #[test]
     fn test_addition() {
-        let expected_hash = LeafNode::new(vec![1], 99).node_hash();
-
+        let leaf = LeafNode::new(vec![b'S', b'a', b't', b'o', b's', b'h', b'i'], 1984);
+        let expected_hash = leaf.node_hash();
+        let expected_root =
+            NodeHash::try_from("fe954176caf85b7dd0e82a4377902faed05cb165fbb6e30c03b488bde7c1e457")
+                .unwrap();
         let mut tree = get_test_tree();
 
-        tree.insert(NodeHash::from([0; 32]), vec![1], 99).unwrap();
+        tree.insert(
+            NodeHash::from([0; 32]),
+            vec![b'S', b'a', b't', b'o', b's', b'h', b'i'],
+            1984,
+        )
+        .unwrap();
 
         let leaf = tree
             .lookup([0; 32].into())
             .unwrap()
             .expect("We just inserted this");
-        assert_eq!(leaf.node_sum(), 99);
+        assert_eq!(leaf.node_sum(), 1984);
         assert_eq!(leaf.node_hash(), expected_hash);
+        assert_eq!(tree.root, expected_root);
     }
     #[test]
     fn test_deletion() {
@@ -251,19 +251,35 @@ mod test {
     }
     #[test]
     fn test_empty_tree() {
-        // Tests the sanity of our empty tree
-        let mut hashes = vec![];
-        let tree = get_test_tree();
-        let mut node = Node::Leaf(LeafNode::new(vec![], 0));
-        for _ in 0..=255 {
-            hashes.push(node.node_hash());
-            node = Node::Branch(DiskBranchNode::new(0, node.node_hash(), node.node_hash()));
-        }
+        // Tests if our empty tree is correct. This hashes was obtained using this Go code:
+        //```go
+        //  package main
+        //
+        //  import (
+        //  	"fmt"
+        //
+        //  	"github.com/lightninglabs/taro/mssmt"
+        //  )
+        //
+        //  func main() {
+        //  	for _, hash := range mssmt.EmptyTree {
+        //  		fmt.Println(hash.NodeHash().String())
+        //  	}
+        //  }
+        //```
 
-        let cmp = tree.empty_tree.iter().zip(hashes.iter().rev());
-        for (left, right) in cmp {
+        let hashes = include_str!("empty_tree.json");
+        let hashes: Vec<NodeHash> = serde_json::from_str::<Vec<&str>>(hashes)
+            .unwrap()
+            .iter()
+            .map(|hash| NodeHash::try_from(*hash).unwrap())
+            .collect();
+        // Tests the sanity of our empty tree
+        let tree = get_test_tree();
+        let cmp = tree.empty_tree.iter().zip(hashes.iter());
+        for (i, (left, right)) in cmp.enumerate() {
             // assert that each i-th position is pairwise equal
-            assert_eq!(left.node_hash(), *right);
+            assert_eq!(left.node_hash(), *right, "node {i} diverges");
         }
     }
 }

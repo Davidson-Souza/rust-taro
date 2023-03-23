@@ -7,7 +7,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+#[cfg(test)]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct NodeHash([u8; 32]);
 impl NodeHash {
     /// Tells which node should we take while descending into a tree (left or right sibling)

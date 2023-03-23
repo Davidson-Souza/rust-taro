@@ -171,3 +171,23 @@ impl From<BranchNode> for DiskBranchNode {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::node_hash::NodeHash;
+
+    use super::{LeafNode, MSSMTNode};
+
+    #[test]
+    fn test_node_hash() {
+        let expected_hash =
+            NodeHash::try_from("a8a978fd0d18e6d65c09a6771425d6e8cb7f8e7695cf178696c1b20d0e7d9edd")
+                .unwrap();
+        let node_hash = LeafNode {
+            data: vec![b'B', b'i', b't', b'c', b'o', b'i', b'n'],
+            sum: 99,
+        }
+        .node_hash();
+        assert_eq!(expected_hash, node_hash)
+    }
+}
