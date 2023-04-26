@@ -1,4 +1,4 @@
-use crate::{
+use super::{
     node::{DiskBranchNode, LeafNode, MSSMTNode, Node},
     node_hash::NodeHash,
     proof::{Proof, Provable},
@@ -151,7 +151,7 @@ impl<Persistence: TreeStore> Tree<Persistence::Error> for MSSMTree<Persistence> 
 impl<T: TreeStore> Provable for MSSMTree<T> {
     type Error = T::Error;
 
-    fn prove(&self, key: NodeHash) -> Result<crate::proof::Proof, Self::Error> {
+    fn prove(&self, key: NodeHash) -> Result<Proof, Self::Error> {
         let mut proof = Vec::new();
         let mut node = self.root;
         for idx in 0..=255 {
@@ -185,7 +185,7 @@ impl<T: TreeStore> Provable for MSSMTree<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use crate::mssmt::{
         memory_db::MemoryDatabase,
         node::{LeafNode, MSSMTNode},
         node_hash::NodeHash,

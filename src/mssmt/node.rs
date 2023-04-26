@@ -6,7 +6,7 @@
 
 use sha2::Digest;
 
-use crate::node_hash::NodeHash;
+use crate::mssmt::node_hash::NodeHash;
 
 /// A trait that must be implemented by all nodes in the tree
 pub trait MSSMTNode {
@@ -174,7 +174,7 @@ impl From<BranchNode> for DiskBranchNode {
 
 #[cfg(test)]
 mod test {
-    use crate::node_hash::NodeHash;
+    use crate::mssmt::node_hash::NodeHash;
 
     use super::{LeafNode, MSSMTNode};
 

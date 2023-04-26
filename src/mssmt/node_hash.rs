@@ -89,7 +89,7 @@ impl Display for NodeHash {
 mod test {
     use std::ops::Deref;
 
-    use crate::node_hash::NodeHash;
+    use crate::mssmt::node_hash::NodeHash;
 
     #[test]
     fn test_display() {

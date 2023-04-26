@@ -14,7 +14,7 @@
 //! can be used to reproduce the root, assuming the hash function is secure, the object must
 //! be in the original set.
 //!
-use crate::{
+use super::{
     node::{BranchNode, LeafNode, MSSMTNode, Node},
     node_hash::NodeHash,
 };
@@ -22,13 +22,6 @@ use crate::{
 #[derive(Debug)]
 pub struct Proof {
     nodes: Vec<Node>,
-}
-/// A compact proof is a proof that omits empty branches. In a sparse tree, there will be
-/// tons of empty branches, especially if there's only a handful of elements. We signal empty
-/// nodes by setting the corresponding bits in a bitmap.
-pub struct CompactProof {
-    _bits: [bool; 256],
-    _nodes: [NodeHash; 256],
 }
 impl Proof {
     pub fn new(nodes: Vec<Node>) -> Proof {
@@ -65,7 +58,7 @@ impl Verifiable for Proof {
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use crate::mssmt::{
         memory_db::MemoryDatabase,
         node::LeafNode,
         node_hash::NodeHash,

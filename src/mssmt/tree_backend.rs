@@ -8,8 +8,8 @@
 //! can be computed efficiently ahead of time, this saves up space and makes the tree more
 //! tractable.
 //!
-use crate::node::{BranchNode, DiskBranchNode, LeafNode};
-use crate::node_hash::NodeHash;
+use super::node::{BranchNode, DiskBranchNode, LeafNode};
+use super::node_hash::NodeHash;
 
 pub trait TreeStore {
     type Error;

@@ -29,7 +29,7 @@ use std::{
     sync::{PoisonError, RwLock},
 };
 
-use crate::{
+use super::{
     node::MSSMTNode,
     node::{BranchNode, DiskBranchNode, LeafNode, Node},
     node_hash::NodeHash,
@@ -75,10 +75,7 @@ impl TreeStore for MemoryDatabase {
         inner.insert(leaf.node_hash(), Node::Leaf(leaf));
         Ok(())
     }
-    fn fetch_branch(
-        &self,
-        hash: NodeHash,
-    ) -> Result<Option<crate::node::DiskBranchNode>, Self::Error> {
+    fn fetch_branch(&self, hash: NodeHash) -> Result<Option<DiskBranchNode>, Self::Error> {
         let inner = self.inner.read()?;
         let node = inner.get(&hash);
         match node {
@@ -115,7 +112,7 @@ impl<T> From<PoisonError<T>> for MemoryDatabaseError {
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use crate::mssmt::{
         node::{DiskBranchNode, LeafNode, MSSMTNode},
         node_hash::NodeHash,
         tree_backend::TreeStore,
